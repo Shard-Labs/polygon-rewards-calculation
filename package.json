@@ -1,0 +1,28 @@
+{
+  "name": "polygon-rewards-calculation",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Shard-Labs/polygon-rewards-calculation.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Shard-Labs/polygon-rewards-calculation/issues"
+  },
+  "homepage": "https://github.com/Shard-Labs/polygon-rewards-calculation#readme",
+  "devDependencies": {
+    "axios": "^0.27.2"
+  },
+  "dependencies": {
+    "bn.js": "^5.2.0",
+    "currency.js": "^2.0.4",
+    "ethers": "^5.6.4",
+    "jspdf": "^2.5.1"
+  }
+}
