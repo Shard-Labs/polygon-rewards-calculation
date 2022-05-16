@@ -44,8 +44,8 @@ async function main () {
   } else {
     res = (await axios.get(url)).data
   }
-
-  const output = `report-${month}-${year}.pdf`
+  const dir = 'reports'
+  const output = `${dir}/${month}-${year}.pdf`
   const { result } = res
 
   for (let index = 0; index < result.length; index++) {
