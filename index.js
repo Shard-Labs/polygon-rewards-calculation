@@ -82,7 +82,7 @@ async function main () {
       totalRewards = totalRewards.add(_totalReward)
       totalVaidatorRewards = totalVaidatorRewards
         .add(_validatorReward)
-        .add(_commissionedReward)
+        // .add(_commissionedReward)
 
       days[day] = days[day].add(_validatorReward).add(_commissionedReward)
     }
@@ -141,7 +141,7 @@ function exportPDF (output, month, year) {
 
   doc.text(
     `Total Validator Rewards:  ${currency(
-      ethers.utils.formatEther(validatorRewards.toString()),
+      ethers.utils.formatEther(validatorRewards.sub(commissionedRewards).toString()),
       {
         symbol: ''
       }
