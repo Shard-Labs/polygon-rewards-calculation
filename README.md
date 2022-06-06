@@ -17,4 +17,4 @@ You can export reports using the following command
 #### Using Local URL
 - Export November 2021 data: **`node index.js year=2021 month=11 url={url}`**
 
-A PDF file will be generated with the name **`report-${month}-${year}.pdf`**
+A PDF file will be generated with the name **`${month}-${year}.pdf`**
