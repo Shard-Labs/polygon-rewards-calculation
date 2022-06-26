@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "bn.js": "^5.2.0",
+    "csv-parse": "^5.1.0",
+    "csv-parser": "^3.0.0",
     "currency.js": "^2.0.4",
     "ethers": "^5.6.4",
     "jspdf": "^2.5.1"

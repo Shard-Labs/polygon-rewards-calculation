@@ -45,7 +45,10 @@ async function main () {
     res = (await axios.get(url)).data
   }
   const dir = 'reports'
-  const output = `${dir}/${month}-${year}.pdf`
+  if (!fs.existsSync(dir)){
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  const output = `${dir}/polygon-${month}-${year}.pdf`
   const { result } = res
 
   for (let index = 0; index < result.length; index++) {
