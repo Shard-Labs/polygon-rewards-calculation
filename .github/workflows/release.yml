@@ -2,6 +2,8 @@ name: Release
 on:
   push:
     branches: [ "main", "ci" ]
+    tags:
+      - 'v*'
 jobs:
   build:
 
@@ -12,11 +14,51 @@ jobs:
     - uses: actions/setup-node@v3
       with:
         node-version: 14
-    - run: source ci/release.sh
-    - run: ls -la
 
-    - uses: actions/upload-artifact@v3
+    - name: export reports
+      run: ci/release.sh
+
+    - name: source env
+      run: cat ci/ci.env >> $GITHUB_ENV
+
+    # - uses: actions/upload-artifact@v3
+    #   with:
+    #     name: reports.zip
+    #     path: reports
+    #     if-no-files-found: error
+
+    - uses: montudor/action-zip@v1
       with:
-        name: reports
-        path: reports
+        args: zip -qq -r reports.zip reports
+
+    - uses: dev-drprasad/delete-tag-and-release@v0.2.0
+      with:
+        delete_release: true
+        tag_name: ${{ env.RELEASE_TAG }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: release
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: false
+        prerelease: false
+        release_name: ${{ env.RELEASE_TAG }}
+        tag_name: ${{ env.RELEASE_TAG }}
+        body: |
+            Changes in this Release
+            - Report Polygon and Near validators
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: upload report
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: reports.zip
+        asset_name: reports-${{ env.MONTH }}-${{ env.YEAR }}.zip
+        asset_content_type: application/gzip
         
