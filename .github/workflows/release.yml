@@ -12,11 +12,34 @@ jobs:
     - uses: actions/setup-node@v3
       with:
         node-version: 14
-    - run: source ci/release.sh
-    - run: ls -la
+
+    - name: source evv
+      run: source ci/release.sh
 
     - uses: actions/upload-artifact@v3
       with:
         name: reports
-        path: reports
+        path: reports-${{ env.MONTH }}-${{ env.YEAR }}
+
+    - name: release
+      uses: actions/create-release@v1
+      id: create_release
+      with:
+        draft: false
+        prerelease: false
+        release_name: reports-${{ env.MONTH }}-${{ env.YEAR }}
+        tag_name: ${{ github.ref }}
+        body_path: CHANGELOG.md
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+
+    - name: upload report
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./reports
+        asset_name: reports-${{ env.MONTH }}-${{ env.YEAR }}
+        asset_content_type: application/gzip
         
