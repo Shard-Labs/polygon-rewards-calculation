@@ -21,9 +21,9 @@ async function main () {
     year: 2022,
     // url
     url:
-      'https://sentinel.matic.network/api/v2/validators/54/checkpoints-signed?limit=19000',
-    // json file path
-    file: ''
+      'https://sentinel.matic.network/api/v2/validators/54/checkpoints-signed',
+    // offset
+    offset: 150
   }
 
   // Parse argv
@@ -35,61 +35,60 @@ async function main () {
     config[arg[0]] = arg[1]
   }
 
-  const { url, month, year } = config
-
-  // check if use local or remote data
-  let res
-  if (config.file !== '') {
-    res = JSON.parse(fs.readFileSync('./data.json'))
-  } else {
-    res = (await axios.get(url)).data
-  }
+  const { url, month, year, offset } = config
+  
   const dir = 'reports'
-  if (!fs.existsSync(dir)){
-    fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
   }
   const output = `${dir}/polygon-${month}-${year}.pdf`
-  const { result } = res
+  
+  for (let idx = 1; idx < offset; idx++) {
+    // check if use local or remote data
+    let res = (await axios.get(`${url}?offset=${idx}&limit=20`)).data
+    const { result } = res
 
-  for (let index = 0; index < result.length; index++) {
-    const {
-      totalReward,
-      validatorReward,
-      commissionedReward,
-      delegatorsReward,
-      timestamp
-    } = result[index]
 
-    var date = new Date(timestamp * 1000)
-    if (date.getMonth() + 1 == month) {
-      let day = `${date.getDate()}-${month}-${year}`
+    for (let index = 0; index < result.length; index++) {
+      const {
+        totalReward,
+        validatorReward,
+        commissionedReward,
+        delegatorsReward,
+        timestamp
+      } = result[index]
 
-      if (date.getDate() <= 9) {
-        day = `0${day}`
-      }
+      var date = new Date(timestamp * 1000)
+      if (date.getMonth() + 1 == month) {
+        let day = `${date.getDate()}-${month}-${year}`
 
-      if (days[day] == undefined) {
-        days[day] = ethers.BigNumber.from('0')
-      }
+        if (date.getDate() <= 9) {
+          day = `0${day}`
+        }
 
-      const _totalReward = toBN(totalReward)
-      const _validatorReward = toBN(validatorReward)
-      const _commissionedReward = toBN(commissionedReward)
-      const _delegatorsReward = toBN(delegatorsReward)
+        if (days[day] == undefined) {
+          days[day] = ethers.BigNumber.from('0')
+        }
 
-      validatorRewards = validatorRewards.add(_validatorReward)
-      commissionedRewards = commissionedRewards.add(_commissionedReward)
+        const _totalReward = toBN(totalReward)
+        const _validatorReward = toBN(validatorReward)
+        const _commissionedReward = toBN(commissionedReward)
+        const _delegatorsReward = toBN(delegatorsReward)
 
-      delegatorsTotalRewards = delegatorsTotalRewards.add(_delegatorsReward)
+        validatorRewards = validatorRewards.add(_validatorReward)
+        commissionedRewards = commissionedRewards.add(_commissionedReward)
 
-      totalRewards = totalRewards.add(_totalReward)
-      totalVaidatorRewards = totalVaidatorRewards
-        .add(_validatorReward)
+        delegatorsTotalRewards = delegatorsTotalRewards.add(_delegatorsReward)
+
+        totalRewards = totalRewards.add(_totalReward)
+        totalVaidatorRewards = totalVaidatorRewards.add(_validatorReward)
         // .add(_commissionedReward)
 
-      days[day] = days[day].add(_validatorReward).add(_commissionedReward)
+        days[day] = days[day].add(_validatorReward).add(_commissionedReward)
+      }
     }
   }
+
   exportPDF(output, month, year)
 }
 
@@ -144,7 +143,9 @@ function exportPDF (output, month, year) {
 
   doc.text(
     `Total Validator Rewards:  ${currency(
-      ethers.utils.formatEther(validatorRewards.sub(commissionedRewards).toString()),
+      ethers.utils.formatEther(
+        validatorRewards.sub(commissionedRewards).toString()
+      ),
       {
         symbol: ''
       }
