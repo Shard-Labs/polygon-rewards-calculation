@@ -6,7 +6,7 @@ const fs = require('fs')
 const currency = require('currency.js')
 const parseCSV = require('csv-parser')
 
-const rewardKey = "Rewards Ⓝ"
+const rewardKey = 'Rewards Ⓝ'
 
 async function main () {
   // configuration
@@ -32,8 +32,8 @@ async function main () {
 
   const { month, year } = config
   const dir = 'reports'
-  if (!fs.existsSync(dir)){
-    fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true })
   }
   const output = `${dir}/near-${month}-${year}.pdf`
 
@@ -45,14 +45,20 @@ async function main () {
       const { date } = data
       const dateTime = new Date(String(date).split(' ')[0])
       if (dateTime.getMonth() + 1 == month) {
+        console.log(dateTime.getDate())
         if (rewardsPerDay[dateTime.getDate()] === undefined) {
           rewardsPerDay[dateTime.getDate()] = 0
         }
-        rewardsPerDay[dateTime.getDate()] = data[rewardKey]
+        rewardsPerDay[dateTime.getDate()] = (
+          Number(data[rewardKey]) + Number(rewardsPerDay[dateTime.getDate()])
+        ).toPrecision(3)
+
         rewardsPerMonth += Number(data[rewardKey])
       }
     })
     .on('end', () => {
+      console.log(rewardsPerMonth)
+      console.log(rewardsPerDay)
       exportPDF(output, rewardsPerMonth, rewardsPerDay, month, year)
     })
 }
