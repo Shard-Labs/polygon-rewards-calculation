@@ -6,24 +6,23 @@ const fs = require('fs')
 const currency = require('currency.js')
 
 let days = {}
-var totalRewards = ethers.BigNumber.from('0')
 var validatorRewards = ethers.BigNumber.from('0')
 var commissionedRewards = ethers.BigNumber.from('0')
-var delegatorsTotalRewards = ethers.BigNumber.from('0')
 var totalVaidatorRewards = ethers.BigNumber.from('0')
 
 async function main () {
   // configuration
   config = {
     // the month
-    month: 1,
+    month: 10,
     // sentinel url endpoint
     year: 2022,
     // url
     url:
       'https://sentinel.matic.network/api/v2/validators/54/checkpoints-signed',
     // offset
-    offset: 150
+    offset: 150,
+    page: 1
   }
 
   // Parse argv
@@ -35,7 +34,7 @@ async function main () {
     config[arg[0]] = arg[1]
   }
 
-  const { url, month, year, offset } = config
+  const { url, month, year, offset, page } = config
   
   const dir = 'reports'
   if (!fs.existsSync(dir)) {
@@ -43,7 +42,7 @@ async function main () {
   }
   const output = `${dir}/polygon-${month}-${year}.pdf`
   
-  for (let idx = 1; idx < offset; idx++) {
+  for (let idx = page; idx < offset; idx++) {
     // check if use local or remote data
     let res = (await axios.get(`${url}?offset=${idx}&limit=20`)).data
     const { result } = res
@@ -51,10 +50,10 @@ async function main () {
 
     for (let index = 0; index < result.length; index++) {
       const {
-        totalReward,
+        // totalReward,
         validatorReward,
         commissionedReward,
-        delegatorsReward,
+        // delegatorsReward,
         timestamp
       } = result[index]
 
@@ -70,25 +69,17 @@ async function main () {
           days[day] = ethers.BigNumber.from('0')
         }
 
-        const _totalReward = toBN(totalReward)
         const _validatorReward = toBN(validatorReward)
         const _commissionedReward = toBN(commissionedReward)
-        const _delegatorsReward = toBN(delegatorsReward)
 
         validatorRewards = validatorRewards.add(_validatorReward)
         commissionedRewards = commissionedRewards.add(_commissionedReward)
 
-        delegatorsTotalRewards = delegatorsTotalRewards.add(_delegatorsReward)
-
-        totalRewards = totalRewards.add(_totalReward)
         totalVaidatorRewards = totalVaidatorRewards.add(_validatorReward)
-        // .add(_commissionedReward)
-
-        days[day] = days[day].add(_validatorReward).add(_commissionedReward)
+        days[day] = days[day].add(_validatorReward)
       }
     }
   }
-
   exportPDF(output, month, year)
 }
 
