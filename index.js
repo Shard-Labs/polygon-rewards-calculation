@@ -1,87 +1,13 @@
-const process = require('process')
-const axios = require('axios').default
-const ethers = require('ethers')
-const jsPDF = require('jspdf')
+const axios = require('axios')
 const fs = require('fs')
-const currency = require('currency.js')
+const ethers = require('ethers')
+const { exportPolygonPDF } = require('./utils')
 
-let days = {}
-var validatorRewards = ethers.BigNumber.from('0')
-var commissionedRewards = ethers.BigNumber.from('0')
-var totalVaidatorRewards = ethers.BigNumber.from('0')
-
-async function main () {
-  // configuration
-  config = {
-    // the month
-    month: 10,
-    // sentinel url endpoint
-    year: 2022,
-    // url
-    url:
-      'https://sentinel.matic.network/api/v2/validators/54/checkpoints-signed',
-    // offset
-    offset: 150,
-    page: 1
-  }
-
-  // Parse argv
-  var args = process.argv.slice(2)
-
-  for (let index = 0; index < args.length; index++) {
-    const element = String(args[index])
-    const arg = element.split('=')
-    config[arg[0]] = arg[1]
-  }
-
-  const { url, month, year, offset, page } = config
-  
-  const dir = 'reports'
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true })
-  }
-  const output = `${dir}/polygon-${month}-${year}.pdf`
-  
-  for (let idx = page; idx < offset; idx++) {
-    // check if use local or remote data
-    let res = (await axios.get(`${url}?offset=${idx}&limit=20`)).data
-    const { result } = res
-
-
-    for (let index = 0; index < result.length; index++) {
-      const {
-        // totalReward,
-        validatorReward,
-        commissionedReward,
-        // delegatorsReward,
-        timestamp
-      } = result[index]
-
-      var date = new Date(timestamp * 1000)
-      if (date.getMonth() + 1 == month) {
-        let day = `${date.getDate()}-${month}-${year}`
-
-        if (date.getDate() <= 9) {
-          day = `0${day}`
-        }
-
-        if (days[day] == undefined) {
-          days[day] = ethers.BigNumber.from('0')
-        }
-
-        const _validatorReward = toBN(validatorReward)
-        const _commissionedReward = toBN(commissionedReward)
-
-        validatorRewards = validatorRewards.add(_validatorReward)
-        commissionedRewards = commissionedRewards.add(_commissionedReward)
-
-        totalVaidatorRewards = totalVaidatorRewards.add(_validatorReward)
-        days[day] = days[day].add(_validatorReward)
-      }
-    }
-  }
-  exportPDF(output, month, year)
-}
+const POLYGON_SCAN_API_KEY = 'I8HP59YI9ARZHC2GW9SFA3R4CKHX3UFGS1'
+const VALIDATOR_ADDRESS = '0xfb960a9450fc2f5dc8c6b1172932b678e287835f'
+const MINTED_BLOCKS_URL = `https://api.polygonscan.com/api?module=account&action=getminedblocks`
+const POLYGON_SENTINEL_URL =
+  'https://sentinel.matic.network/api/v2/validators/54/checkpoints-signed'
 
 function toBN (input) {
   if (String(input).includes('e')) {
@@ -89,93 +15,217 @@ function toBN (input) {
   }
 
   return ethers.BigNumber.from(
-    Number(input)
-      .toFixed()
-      .toLocaleString('fullwide', {
-        useGrouping: false
-      })
+    Number(input).toFixed().toLocaleString('fullwide', {
+      useGrouping: false
+    })
   )
 }
 
-function toFixed (x) {
-  if (Math.abs(x) < 1.0) {
-    var e = parseInt(x.toString().split('e-')[1])
-    if (e) {
-      x *= Math.pow(10, e - 1)
-      x = '0.' + new Array(e).join('0') + x.toString().substring(2)
+const getValidatorPolygonNetworkRewards = async (month, year) => {
+  let page = 1
+  const offset = 10000
+
+  let transactions = []
+  while (true) {
+    const url = `${MINTED_BLOCKS_URL}&address=${VALIDATOR_ADDRESS}&blocktype=blocks&page=${page}&offset=${offset}&apikey=${POLYGON_SCAN_API_KEY}`
+    const { data } = await axios.get(url)
+
+    if (data.result.length == 0) {
+      break
     }
-  } else {
-    var e = parseInt(x.toString().split('+')[1])
-    if (e > 20) {
-      e -= 20
-      x /= Math.pow(10, e)
-      x += new Array(e + 1).join('0')
+
+    transactions.push(...data.result)
+    page++
+  }
+
+  const days = {}
+  let totalMonthlyReward = ethers.BigNumber.from(0)
+  for (let i = 0; i < transactions.length; i++) {
+    const { timeStamp, blockReward } = transactions[i]
+    const time = new Date(Number(timeStamp) * 1000)
+    const m = time.getMonth() + 1
+    const d = time.getDate()
+    const y = time.getFullYear()
+    const blockRewardBN = ethers.BigNumber.from(blockReward)
+
+    if (m == month) {
+      if (!days[d]) {
+        days[d] = ethers.BigNumber.from(0)
+        console.log(d)
+      }
+      days[d] = days[d].add(blockRewardBN)
+      totalMonthlyReward = totalMonthlyReward.add(blockRewardBN)
     }
   }
-  return x
+
+  const parsedDays = {
+    totalRewards: totalMonthlyReward,
+    dailyRewards: {}
+  }
+  const keys = Object.keys(days)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    parsedDays.dailyRewards[`${key}-${month}-${year}`] = {
+      rewards: days[key]
+    }
+  }
+
+  /* Example object returned
+  {
+    totalRewards: '3001995937518958676177',
+    dailyRewards: [
+      { date: '1-10-2022', rewards: '451635760442540284969' },
+      { date: '2-10-2022', rewards: '513785606277894142170' },
+      { date: '3-10-2022', rewards: '512197877285736960237' },
+      { date: '4-10-2022', rewards: '582431948474995719905' },
+      { date: '5-10-2022', rewards: '485347997097057799605' },
+      { date: '6-10-2022', rewards: '184060402068804146605' },
+      { date: '7-10-2022', rewards: '272536345871929622686' }
+    ]
+  }
+  */
+
+  console.log(parsedDays)
+  return parsedDays
 }
 
-function exportPDF (output, month, year) {
-  const doc = new jsPDF.jsPDF('p', 'mm', 'a4')
-  doc.text(`Shard Labs: 54`, 10, 20)
+const getValidatorEthereumRewards = async (month, year, usefile) => {
+  let start = false
+  let end = false
+  const TRANSACTIONS_PER_MONTH = 45 // avrage the number of transactions per month
 
-  doc.text(`${month}-${year}`, 180, 20)
+  let { data: lastData } = await axios.get(POLYGON_SENTINEL_URL)
+  const lastTimestamp = lastData.result[0].timestamp
 
-  doc.text(
-    `Total Rewards: ${currency(
-      ethers.utils.formatEther(totalVaidatorRewards.toString()),
-      {
-        symbol: ''
-      }
-    ).format()}`,
-    10,
-    28
-  )
+  const { total, pageSize } = lastData.summary
+  const pages = Number(Math.floor(total / pageSize)).toFixed()
 
-  doc.text(
-    `Total Validator Rewards:  ${currency(
-      ethers.utils.formatEther(
-        validatorRewards.sub(commissionedRewards).toString()
-      ),
-      {
-        symbol: ''
-      }
-    ).format()}`,
-    10,
-    36
-  )
+  const lastTime = new Date(lastTimestamp * 1000)
+  const lastTimeMonth = lastTime.getMonth() + 1
+  const lastTimeYear = lastTime.getFullYear()
 
-  doc.text(
-    `Total Commission Rewards: ${currency(
-      ethers.utils.formatEther(commissionedRewards.toString()),
-      {
-        symbol: ''
-      }
-    ).format()}`,
-    10,
-    44
-  )
+  if (month > lastTimeMonth || year > lastTimeYear) {
+    console.log('Invalid date')
+    return
+  }
 
-  doc.line(00, 52, 210, 52)
-
-  const daysList = Object.entries(days)
   let offset = 0
-  for (let i = daysList.length - 1; i >= 0; i--) {
-    const amount = ethers.utils.formatEther(daysList[i][1].toString())
-    doc.text(
-      `${daysList[i][0]}: ${' '.repeat(80)}${currency(amount, {
-        symbol: ''
-      }).format()}`,
-      10,
-      60 + offset * 7
-    )
-    offset++
+  if (month + 1 < lastTimeMonth && year == lastTimeYear && !usefile) {
+    offset = TRANSACTIONS_PER_MONTH * (lastTimeMonth - month)
   }
-  doc.save(output)
+
+  // console.log(offset)
+  let totalValidatorReward = ethers.BigNumber.from('0')
+  let totalComissionReward = ethers.BigNumber.from('0')
+
+  let days = {}
+  let totalTxs = 0
+  while (true) {
+    if (start && end) {
+      // console.log('BREAK')
+      break
+    }
+
+    let allData
+    let len
+    let transactions
+    if (!usefile) {
+      let { data } = await axios.get(
+        `${POLYGON_SENTINEL_URL}?offset=${offset}&limit=20`
+      )
+      allData = data
+      len = data.result.length
+      transactions = [...data.result]
+    } else {
+      allData = JSON.parse(fs.readFileSync('polygon_data.json', 'utf-8'))
+      len = allData.transactions.length
+      transactions = [...allData.transactions]
+      console.log(len)
+    }
+
+    if (len == 0) {
+      // console.log('BREAK LEN')
+      break
+    }
+
+
+    for (let j = 0; j < len; j++) {
+      const { validatorReward, commissionedReward, timestamp } = transactions[j]
+      const time = new Date(Number(timestamp) * 1000)
+      const m = time.getMonth() + 1
+      const d = time.getDate()
+      const y = time.getFullYear()
+
+      if (start && m != month && !usefile) {
+        end = true
+        console.log('END')
+        break
+      }
+
+      if (m == month && y == year) {
+        // console.log(time)
+        start = true
+        totalTxs++
+        if (days[d] == undefined) {
+          days[d] = ethers.BigNumber.from(0)
+        }
+
+        const _validatorReward = toBN(validatorReward)
+        const _commissionedReward = toBN(commissionedReward)
+
+        days[d] = days[d].add(_validatorReward)
+        totalValidatorReward = totalValidatorReward.add(_validatorReward)
+        totalComissionReward = totalComissionReward.add(_commissionedReward)
+      }
+    }
+    offset++
+    if (usefile) {
+      break
+    }
+  }
+  const parsedDays = {
+    totalValidatorReward: totalValidatorReward,
+    totalComissionReward: totalComissionReward,
+    dailyRewards: []
+  }
+
+  const keys = Object.keys(days)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    parsedDays.dailyRewards.push({
+      date: `${key}-${month}-${year}`,
+      rewards: days[key].toString()
+    })
+  }
+  console.log(totalTxs)
+  // console.log('totalMonthlyReward', totalMonthlyReward)
+  // console.log('days[d]', days)
+  return parsedDays
 }
+
+const main = async () => {
+  const args = process.argv
+  const argsObj = {}
+  for (let i = 2; i < args.length; i++) {
+    const arg = args[i].split('=')
+    argsObj[arg[0]] = arg[1]
+  }
+
+  const month = Number(argsObj.month)
+  const year = Number(argsObj.year)
+  usefile = argsObj.useFile != undefined
+
+  const ethereumData = await getValidatorEthereumRewards(month, year, usefile)
+  console.log('Get Data From Ethereum done!!')
+  const polygonData = await getValidatorPolygonNetworkRewards(month, year)
+  console.log('Get Data From Polygon done!!')
+
+  exportPolygonPDF(
+    { polygonData, ethereumData },
+    `reports/${month}-${year}.pdf`,
+    month,
+    year
+  )
+}
+
 main()
-  .then()
-  .catch(e => {
-    console.log(e)
-    process.exit(1)
-  })
