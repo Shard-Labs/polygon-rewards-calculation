@@ -222,7 +222,7 @@ const main = async () => {
 
   exportPolygonPDF(
     { polygonData, ethereumData },
-    `reports/${month}-${year}.pdf`,
+    `reports/polygon-${month}-${year}.pdf`,
     month,
     year
   )
